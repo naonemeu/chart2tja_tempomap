@@ -6,4 +6,5 @@ The only graphical software avaliable for .tja charting doesn't have a "BPM drag
 Also useful to quickly import tempo maps from already completed .chart files.
 
 ## Note
-At the time, it does not convert the note portion of the chart, and the time signature handler was disabled, as it is incomplete.
+At the time, it does not convert the note portion of the chart, and the time signature handler was disabled, as it is incomplete. 
+Despite this, as long a BPM change was made in x/(1,2,4,8 or 16) measure, it will work.
