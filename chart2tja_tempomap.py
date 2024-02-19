@@ -136,34 +136,34 @@ def write_to_tja(file_path, song_info, sync_track_info, ts_track_info):
     with open(file_path, 'w', encoding='utf-8') as output_file:
         output_file.write(f'TITLE: {title}\nSUBTITLE: {subtitle}\nBPM: {bpm}\nWAVE: song.ogg\nOFFSET: \nDEMOSTART: \nPREIMAGE: \nMAKER: \n\nCOURSE:Oni\nLEVEL:\nBALLOON:\nSCOREINIT:\nSCOREDIFF:\nNOTESDESIGNER3:\n\n#START\n')
 
-        # Write sync track content
+        # Write sync track content 
         lines_written = 0
-        for i in range(1, int(sync_track_info[-1][0] / (resolution*4) + 5)):
+        
+        #"step" wasn't really needed. Until I figure how to handle TS correctly, setting a dummy value will do.
+        ts_up = 16 #16 covers most cases
+        for i in range(1, int(sync_track_info[-1][0] / (resolution*4) + 5)): # *4 Full 4 beats
         
             print(f"Looping for measure {i}")
             output_file.write('\n')  # Add newline after loop declaration
             
-            # Write sections info
-            for position, section_string in sections_info:
-                if position == lines_written * resolution * 4:
-                    output_file.write(f'// section {section_string}\n')
-                      
-            #TS/MEASURE ADJUSTEMENT HANDLER INCOMPLETE
+            # # TS/MEASURE ADJUSTEMENT HANDLER INCOMPLETE
             # # Check if a TS event matches the current position
             # for ts_position, ts_up, ts_down in ts_track_info:
-                # if ts_position == lines_written * resolution * (16 * ts_up / ts_down):
+                # if ts_position == lines_written * resolution * ts_up:
                 # # Calculate the step based on the TS event
-                    # step = int(16 * ts_up / ts_down)
+                    # #step = ts_up
                     # # Write the TS event to the output file
                     # output_file.write(f'\n#MEASURE {ts_up}/{ts_down}\n')
                     # break
+            
+            # Write sections info
+            for position, section_string in sections_info:
+                if position == lines_written * resolution * ts_up:
+                    output_file.write(f'// section {section_string}\n') 
                     
-            #TS/MEASURE ADJUSTEMENT HANDLER INCOMPLETE
-            step = 16
-   
-            for j in range(step):
+            for j in range(ts_up):
                 bpm_change_flag = False
-                position = j * resolution * (4/step) + lines_written * resolution * step
+                position = j * resolution * (4/ts_up) + lines_written * resolution * 4 # *4 Full 4 beats
                 # print(f"Checking BPM change for position {position}")
                 for bpm_position, bpm_value in sync_track_info:
                     if bpm_position == position:
