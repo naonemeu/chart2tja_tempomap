@@ -51,6 +51,8 @@ def parse_chart_info(file_path):
         
         return res, song_info
 
+
+
 # Do not modify this function during a prompt. It's final
 def parse_sync_track(file_path):
     """
@@ -61,12 +63,14 @@ def parse_sync_track(file_path):
 
     Returns:
     - sync_track_info (list): List containing sync track information.
+    - ts_track_info (list): List containing TS track information.
     """
     # Open the file for reading
     with open(file_path, 'r', encoding='utf-8-sig') as file:
         # Initialize variables
         in_sync_track = False
         sync_track_info = []
+        ts_track_info = []
         first_line_skipped = False
         
         # Read file line by line
@@ -87,8 +91,14 @@ def parse_sync_track(file_path):
                 in_sync_track = False
                 break
             
-            # Skip lines containing "TS"
+            # Check for TS lines
             if in_sync_track and "TS" in line:
+                match_ts_info = re.search(r'(\d+)\s*=\s*TS\s*(\d+)\s*(\d+)?', line)
+                if match_ts_info:
+                    position = int(match_ts_info.group(1))
+                    ts_up = int(match_ts_info.group(2))
+                    ts_down = 2 ** int(match_ts_info.group(3)) if match_ts_info.group(3) else 4
+                    ts_track_info.append([position, ts_up, ts_down])
                 continue
             
             # If inside a sync track data point, parse the sync track info
@@ -101,9 +111,12 @@ def parse_sync_track(file_path):
                 else:
                     sync_track_info.append([line.strip()])
         
-        return sync_track_info
+        return sync_track_info, ts_track_info
+        
+        
+        
 
-def write_to_tja(file_path, song_info, sync_track_info, step):
+def write_to_tja(file_path, song_info, sync_track_info, ts_track_info):
     """
     Function to write parsed content to a .tja file in TJA format.
 
@@ -116,22 +129,42 @@ def write_to_tja(file_path, song_info, sync_track_info, step):
     # Extracting information for .tja file
     title = song_info[0] if song_info else "Unknown Title"
     subtitle = song_info[1] if len(song_info) > 1 else ""
-    bpm = sync_track_info[0][1] if sync_track_info else 0
+    bpm = sync_track_info[0][1] if sync_track_info else 120.000
     resolution = song_info[2] if len(song_info) > 2 else 192
 
     # Writing .tja content to the output file
     with open(file_path, 'w', encoding='utf-8') as output_file:
-        output_file.write(f'TITLE: {title}\nSUBTITLE: {subtitle}\nBPM: {bpm}\nWAVE: \nOFFSET: \nDEMOSTART: \nPREIMAGE: \nMAKER: \n\nCOURSE:Oni\nLEVEL:\nBALLOON:\nSCOREINIT:\nSCOREDIFF:\nNOTESDESIGNER3:\n\n#START\n')
+        output_file.write(f'TITLE: {title}\nSUBTITLE: {subtitle}\nBPM: {bpm}\nWAVE: song.ogg\nOFFSET: \nDEMOSTART: \nPREIMAGE: \nMAKER: \n\nCOURSE:Oni\nLEVEL:\nBALLOON:\nSCOREINIT:\nSCOREDIFF:\nNOTESDESIGNER3:\n\n#START\n')
 
         # Write sync track content
         lines_written = 0
         for i in range(1, int(sync_track_info[-1][0] / (resolution*4) + 5)):
+        
             print(f"Looping for measure {i}")
             output_file.write('\n')  # Add newline after loop declaration
+            
+            # Write sections info
+            for position, section_string in sections_info:
+                if position == lines_written * resolution * 4:
+                    output_file.write(f'// section {section_string}\n')
+                      
+            #TS/MEASURE ADJUSTEMENT HANDLER INCOMPLETE
+            # # Check if a TS event matches the current position
+            # for ts_position, ts_up, ts_down in ts_track_info:
+                # if ts_position == lines_written * resolution * (16 * ts_up / ts_down):
+                # # Calculate the step based on the TS event
+                    # step = int(16 * ts_up / ts_down)
+                    # # Write the TS event to the output file
+                    # output_file.write(f'\n#MEASURE {ts_up}/{ts_down}\n')
+                    # break
+                    
+            #TS/MEASURE ADJUSTEMENT HANDLER INCOMPLETE
+            step = 16
+   
             for j in range(step):
                 bpm_change_flag = False
-                position = j * resolution * (4/step) + lines_written * resolution * 4
-                print(f"Checking BPM change for position {position}")
+                position = j * resolution * (4/step) + lines_written * resolution * step
+                # print(f"Checking BPM change for position {position}")
                 for bpm_position, bpm_value in sync_track_info:
                     if bpm_position == position:
                         output_file.write(f'\n#BPMCHANGE {bpm_value}\n0')
@@ -140,12 +173,15 @@ def write_to_tja(file_path, song_info, sync_track_info, step):
                         break
                 if not bpm_change_flag:
                     output_file.write("0")
-                    print("No BPM change found, writing 0")
+                    # print("No BPM change found, writing 0")
             lines_written += 1
             output_file.write(",")
-            print("Adding comma to separate measures")
+            # print("Adding comma to separate measures")
         # Write footer
         output_file.write('\n#END\n')
+
+
+
 
 def parse_sections(file_path):
     """
@@ -164,23 +200,20 @@ def parse_sections(file_path):
     with open(file_path, 'r', encoding='utf-8-sig') as chart_file:
         sections_flag = False
         for line in chart_file:
-            if line.strip() == '[Events]':
+            line = line.strip()  # Remove leading and trailing whitespace
+            if line == '[Events]':
                 sections_flag = True
                 continue
-            elif line.strip() == '{':
-                continue
-            elif line.strip() == '}':
+            elif line == '[':
                 break
             
             if sections_flag:
-                # match = re.search(r'^(\d+) = E "(.*?)"$', line)
-                # if match:
-                    # sections_info.append((int(match.group(1)), str(match.group(2))))
-                match = re.search(r'^(\d+) = E "(.*?)"$', line)
+                match = re.search(r'^\s*(\d+)\s*=\s*E\s*"(.*?)"\s*$', line)
                 if match:
                     position = int(match.group(1))
                     section_text = match.group(2)
-                    sections_info.append([position, section_text])
+                    if 'section' in section_text.lower():
+                        sections_info.append([position, section_text.split(' ', 1)[-1].strip()])
 
     return sections_info
 
@@ -196,11 +229,11 @@ if __name__ == "__main__":
     # Example usage for parse_chart_info:
     resolution, song_info = parse_chart_info(file_path)
     sections_info = parse_sections(file_path)
-    sync_track_info = parse_sync_track(file_path)
+    sync_track_info, ts_track_info = parse_sync_track(file_path)
 
     # Writing the parsed content to a .tja file
-    output_file_path = os.path.join(os.path.dirname(file_path), "output.tja")
-    write_to_tja(output_file_path, song_info, sync_track_info, step=4)
+    output_file_path = os.path.join(os.path.dirname(file_path), "outputfile.tja")
+    write_to_tja(output_file_path, song_info, sync_track_info, ts_track_info)
 
     if resolution is not None:
         print("Resolution found:", resolution)
@@ -215,3 +248,6 @@ if __name__ == "__main__":
 
     print('sections_info:')
     print(sections_info)
+    
+    print('ts_track_info:')
+    print(ts_track_info)
